@@ -10,8 +10,8 @@ import (
 	"strings"
 )
 
-// OctoConfig struct with field names that match the config keys
-type OctoConfig struct {
+// IceConfig struct with field names that match the config keys
+type IceConfig struct {
 	Player                   string `config:"Player"`
 	StoragePath              string `config:"StoragePath"`
 	PercentageToMarkComplete int    `config:"PercentageToMarkComplete"`
@@ -19,6 +19,7 @@ type OctoConfig struct {
 	RofiSelection            bool   `config:"RofiSelection"`
 	SaveMpvSpeed             bool   `config:"SaveMpvSpeed"`
 	PreferredQuality         string `config:"PreferredQuality"`
+	ShowImages               bool   `config:"ShowImages"`
 }
 
 // Default configuration values as a map
@@ -28,29 +29,31 @@ func defaultConfigMap() map[string]string {
 		"StoragePath":              "$HOME/.local/share/ice",
 		"PercentageToMarkComplete": "92",
 		"NextEpisodePrompt":        "false",
-		"RofiSelection":            "false",
+		"RofiSelection":            "true",
 		"SaveMpvSpeed":             "true",
 		"PreferredQuality":         "1080p",
+		"ShowImages":               "true",
 	}
 }
 
-var globalConfig *OctoConfig
+var globalConfig *IceConfig
 
-func SetGlobalConfig(config *OctoConfig) {
+func SetGlobalConfig(config *IceConfig) {
 	globalConfig = config
 }
 
-func GetGlobalConfig() *OctoConfig {
+func GetGlobalConfig() *IceConfig {
 	if globalConfig == nil {
 		// Create default config if not set
-		defaultConfig := OctoConfig{
+		defaultConfig := IceConfig{
 			Player:                   "mpv",
 			StoragePath:              "$HOME/.local/share/ice",
 			PercentageToMarkComplete: 92,
 			NextEpisodePrompt:        false,
-			RofiSelection:            false,
+			RofiSelection:            true,
 			SaveMpvSpeed:             true,
 			PreferredQuality:         "1080p",
+			ShowImages:               true,
 		}
 		globalConfig = &defaultConfig
 	}
@@ -58,7 +61,7 @@ func GetGlobalConfig() *OctoConfig {
 }
 
 // LoadConfig reads or creates the config file, adds missing fields, and returns the populated OctoConfig struct
-func LoadConfig(configPath string) (OctoConfig, error) {
+func LoadConfig(configPath string) (IceConfig, error) {
 	configPath = os.ExpandEnv(configPath) // Substitute environment variables like $HOME
 
 	// Check if config file exists
@@ -66,14 +69,14 @@ func LoadConfig(configPath string) (OctoConfig, error) {
 		// Create the config file with default values if it doesn't exist
 		OctoOut("Config file not found. Creating default config...")
 		if err := createDefaultConfig(configPath); err != nil {
-			return OctoConfig{}, fmt.Errorf("error creating default config file: %v", err)
+			return IceConfig{}, fmt.Errorf("error creating default config file: %v", err)
 		}
 	}
 
 	// Load the config from file
 	configMap, err := loadConfigFromFile(configPath)
 	if err != nil {
-		return OctoConfig{}, fmt.Errorf("error loading config file: %v", err)
+		return IceConfig{}, fmt.Errorf("error loading config file: %v", err)
 	}
 
 	// Add missing fields to the config map
@@ -89,7 +92,7 @@ func LoadConfig(configPath string) (OctoConfig, error) {
 	// Write updated config back to file if there were any missing fields
 	if updated {
 		if err := saveConfigToFile(configPath, configMap); err != nil {
-			return OctoConfig{}, fmt.Errorf("error saving updated config file: %v", err)
+			return IceConfig{}, fmt.Errorf("error saving updated config file: %v", err)
 		}
 	}
 
@@ -180,8 +183,8 @@ func saveConfigToFile(path string, configMap map[string]string) error {
 }
 
 // Populate the OctoConfig struct from a map
-func populateConfig(configMap map[string]string) OctoConfig {
-	config := OctoConfig{}
+func populateConfig(configMap map[string]string) IceConfig {
+	config := IceConfig{}
 	configValue := reflect.ValueOf(&config).Elem()
 
 	for i := 0; i < configValue.NumField(); i++ {

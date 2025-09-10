@@ -169,23 +169,24 @@ func AcerGetSource(intermediate, seriesType string) (string, error) {
 }
 
 func AcerSelectQuality(qualities []AcerQuality) (AcerQuality, bool) {
-	cfg := GetGlobalConfig()
-	pref := strings.ToLower(cfg.PreferredQuality)
-	if pref != "" && len(qualities) > 1 { // only auto-pick if single unambiguous
-		var exact []AcerQuality
-		for _, q := range qualities {
-			if strings.EqualFold(q.Quality, pref) {
-				exact = append(exact, q)
+	if len(qualities) == 0 { return AcerQuality{}, true }
+	// Build map quality -> entries
+	byQ := map[string][]AcerQuality{}
+	order := []string{"1080p", "720p", "480p"}
+	for _, q := range qualities { byQ[strings.ToLower(q.Quality)] = append(byQ[strings.ToLower(q.Quality)], q) }
+	for _, want := range order {
+		if list, ok := byQ[want]; ok && len(list) > 0 {
+			// deterministic pick: first item
+			if DebugEnabled() { DebugLog("AUTO quality picked %s among %d options", want, len(list)) }
+			if want != "1080p" {
+				OctoOut(fmt.Sprintf("Quality fallback to %s", want))
 			}
+			return list[0], false
 		}
-		if len(exact) == 1 {
-			return exact[0], false
-		}
-		if len(exact) > 1 {
-			qualities = exact
-		} // narrow but still need selection
 	}
-	if len(qualities) == 1 {
+	// If none of the preferred ladder present, pick first
+	if len(qualities) > 0 {
+		OctoOut(fmt.Sprintf("Quality fallback to %s (only option)", qualities[0].Quality))
 		return qualities[0], false
 	}
 	return AcerQuality{}, true
@@ -361,24 +362,7 @@ func GetShowWithQualitySeason(id string, season int, qualityPref string) (*Show,
 			list = filtered
 		}
 	}
-	selQ, need := AcerSelectQuality(list)
-	if need {
-		opts := AcerQualityOptions(list)
-		chosen, err := DynamicSelect(opts)
-		if err != nil || chosen.Key == "-1" {
-			return nil, fmt.Errorf("quality selection aborted")
-		}
-		idx := atoiSafe(chosen.Key)
-		if idx < 0 || idx >= len(list) {
-			return nil, fmt.Errorf("invalid quality index")
-		}
-		selQ = list[idx]
-		if qualityPref == "" {
-			cfg := GetGlobalConfig()
-			cfg.PreferredQuality = selQ.Quality
-			_ = SaveGlobalConfig()
-		}
-	}
+	selQ, _ := AcerSelectQuality(list)
 	show, err := AcerBuildShow(id, selQ)
 	if show != nil {
 		for i := range show.EpisodesList {
