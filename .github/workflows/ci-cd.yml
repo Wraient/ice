@@ -3,7 +3,12 @@ name: ice-release
 on:
   push:
     branches: [ main ]
-  workflow_dispatch: {}
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (without leading v) for manual release'
+        required: false
 
 env:
   GO_VERSION: '1.21'
@@ -84,7 +89,7 @@ jobs:
 
   release:
     needs: build-matrix
-    if: startsWith(github.ref, 'refs/heads/main') && contains(github.event.head_commit.message, 'release:')
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -96,13 +101,13 @@ jobs:
       - name: Determine version
         id: ver
         run: |
-          # Extract version after 'release: ' prefix or fallback to date
-          msg='${{ github.event.head_commit.message }}'
-            if echo "$msg" | grep -qi 'release:'; then
-              ver=$(echo "$msg" | sed -E 's/.*release: *([vV]?[0-9][^ ]*).*/\1/' | sed 's/^v//')
-            else
-              ver=$(date +%Y.%m.%d)
-            fi
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            ver="${GITHUB_REF#refs/tags/v}"
+          elif [[ -n "${{ github.event.inputs.version }}" ]]; then
+            ver="${{ github.event.inputs.version }}"
+          else
+            ver=$(date +%Y.%m.%d)
+          fi
           echo "version=$ver" >> $GITHUB_OUTPUT
           echo "Release version: $ver"
 
