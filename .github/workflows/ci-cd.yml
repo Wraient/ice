@@ -28,27 +28,47 @@ jobs:
       - name: Detect release commit message
         id: detect
         run: |
+          set -euo pipefail
           msg="${{ github.event.head_commit.message }}"
-          echo "Commit message: $msg"
-          if [[ "$msg" =~ ^release:\ v([0-9]+\.[0-9]+\.[0-9]+)\b ]]; then
+          echo "Full commit message:\n$msg"
+          # Use only first line for pattern match
+          first_line="${msg%%$'\n'*}"
+          echo "First line: $first_line"
+          if [[ "$first_line" =~ ^release:\ v([0-9]+\.[0-9]+\.[0-9]+)([[:space:]]|$) ]]; then
             ver="${BASH_REMATCH[1]}"
             echo "Matched version: $ver"
             echo "version=$ver" >> $GITHUB_OUTPUT
             echo "match=true" >> $GITHUB_OUTPUT
+            {
+              echo "### Detected release commit"
+              echo "Version: v$ver"
+            } >> $GITHUB_STEP_SUMMARY
           else
             echo "No release pattern match (expected: release: vX.Y.Z)"
             echo "match=false" >> $GITHUB_OUTPUT
+            {
+              echo "### No release tag created"
+              echo "First line did not match ^release: vX.Y.Z"
+            } >> $GITHUB_STEP_SUMMARY
           fi
+      - name: Configure git for tagging
+        if: steps.detect.outputs.match == 'true'
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
       - name: Create and push tag
         if: steps.detect.outputs.match == 'true'
         run: |
+          set -euo pipefail
           ver="${{ steps.detect.outputs.version }}"
+          echo "Creating tag v$ver"
           if git rev-parse -q --verify "refs/tags/v$ver" >/dev/null; then
             echo "Tag v$ver already exists; skipping"
             exit 0
           fi
           git tag -a "v$ver" -m "Release v$ver"
           git push origin "v$ver"
+          echo "Tag v$ver pushed. A new workflow run should start for that tag to build & release."
 
   build-matrix:
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
