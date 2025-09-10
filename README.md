@@ -18,6 +18,30 @@ Focused on Acer-only provider. Module path rename is pending; code may still imp
 ## Install
 You need: `mpv` (required), `rofi` (optional), a working Go toolchain if building from source.
 
+<details>
+<summary>Generic Installation</summary>
+  
+Choose the appropriate binary for your system:
+
+```bash
+# For Linux x86_64:
+curl -Lo ice https://github.com/Wraient/ice/releases/latest/download/ice-linux-amd64
+
+# For Linux ARM64:
+curl -Lo ice https://github.com/Wraient/ice/releases/latest/download/ice-linux-arm64
+
+# For macOS ARM64:
+curl -Lo ice https://github.com/Wraient/ice/releases/latest/download/ice-darwin-arm64
+
+# For macOS x86_64:
+curl -Lo ice https://github.com/Wraient/ice/releases/latest/download/ice-darwin-amd64
+
+chmod +x ice
+sudo mv ice /usr/bin/
+ice
+```
+</details>
+
 ### Build from Source
 ```bash
 git clone https://github.com/Wraient/ice.git
