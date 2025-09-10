@@ -2,9 +2,11 @@ package internal
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strings"
-	"github.com/charmbracelet/bubbletea"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // SelectionOption holds the label and the internal key
@@ -15,7 +17,7 @@ type SelectionOption struct {
 
 // Model represents the application state for the selection prompt
 type Model struct {
-	options        map[string]string  // id -> name mapping
+	options        map[string]string // id -> name mapping
 	filter         string
 	filteredKeys   []SelectionOption
 	selected       int
@@ -105,12 +107,18 @@ func (m Model) View() string {
 			if i == m.selected {
 				prefix = "▶ "
 			}
-
-			b.WriteString(fmt.Sprintf("%s%s\n", prefix, entry.Label))
+			label := entry.Label
+			b.WriteString(fmt.Sprintf("%s%s\n", prefix, label))
 		}
 	}
 
 	return b.String()
+}
+
+func isKittyTerminal() bool {
+	term := os.Getenv("TERM")
+	// Kitty typically sets TERM to xterm-kitty
+	return strings.Contains(term, "kitty")
 }
 
 func (m Model) visibleItemsCount() int {
@@ -141,7 +149,24 @@ func (m *Model) filterOptions() {
 	})
 }
 
+// removed external icat placement logic
+
+// truncateMiddle retained (currently unused, but harmless); removed image rendering
+func truncateMiddle(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	if max <= 10 {
+		return s[:max]
+	}
+	keep := (max - 3) / 2
+	return s[:keep] + "..." + s[len(s)-keep:]
+}
+
 // DynamicSelect shows a selection menu and returns the selected option
+// DynamicSelectWithImages allows passing an id->imageURL map for kitty icat previews.
+// Removed DynamicSelectWithImages (CLI image preview feature disabled)
+
 func DynamicSelect(options map[string]string) (SelectionOption, error) {
 	config := GetGlobalConfig()
 	if config != nil && config.RofiSelection {

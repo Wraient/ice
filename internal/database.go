@@ -18,6 +18,7 @@ type TVShow struct {
 	Season       int    `json:"season"`        // Selected season for multi-season shows
 	Quality      string `json:"quality"`       // Chosen quality label
 	EpisodeNum   int    `json:"episode_num"`   // Parsed episode number for progression
+	Image        string `json:"image"`         // Poster/thumbnail URL (remote); cached locally when shown
 }
 
 // Function to add or update a TV show entry
@@ -49,7 +50,7 @@ func LocalUpdateShow(databaseFile string, show TVShow) error {
 	defer writer.Flush()
 
 	// Always write header first (rewrite file fully)
-	header := []string{"ShowID", "EpisodeID", "PlaybackTime", "Season", "Quality", "EpisodeNum"}
+	header := []string{"ShowID", "EpisodeID", "PlaybackTime", "Season", "Quality", "EpisodeNum", "Image"}
 	if err := writer.Write(header); err != nil {
 		return fmt.Errorf("error writing header: %w", err)
 	}
@@ -63,6 +64,7 @@ func LocalUpdateShow(databaseFile string, show TVShow) error {
 			strconv.Itoa(s.Season),
 			s.Quality,
 			strconv.Itoa(s.EpisodeNum),
+			s.Image,
 		}
 		if err := writer.Write(record); err != nil {
 			return fmt.Errorf("error writing record: %w", err)
@@ -127,23 +129,13 @@ func LocalGetAllShows(databaseFile string) []TVShow {
 
 // Function to parse a single row of show data
 func parseShowRow(row []string) *TVShow {
-	if len(row) < 3 {
-		return nil
-	}
+	if len(row) < 3 { return nil }
 	playbackTime, _ := strconv.Atoi(row[2])
-	season := 0
-	quality := ""
-	epNum := 0
-	if len(row) > 3 {
-		season, _ = strconv.Atoi(row[3])
-	}
-	if len(row) > 4 {
-		quality = row[4]
-	}
-	if len(row) > 5 {
-		epNum, _ = strconv.Atoi(row[5])
-	}
-	return &TVShow{ID: row[0], EpisodeID: row[1], PlaybackTime: playbackTime, Season: season, Quality: quality, EpisodeNum: epNum}
+	season := 0; if len(row) > 3 { season, _ = strconv.Atoi(row[3]) }
+	quality := ""; if len(row) > 4 { quality = row[4] }
+	epNum := 0; if len(row) > 5 { epNum, _ = strconv.Atoi(row[5]) }
+	image := ""; if len(row) > 6 { image = row[6] }
+	return &TVShow{ID: row[0], EpisodeID: row[1], PlaybackTime: playbackTime, Season: season, Quality: quality, EpisodeNum: epNum, Image: image}
 }
 
 // Function to find a show by ID
@@ -204,14 +196,14 @@ func LocalDeleteShow(databaseFile string, showID string) error {
 	defer writer.Flush()
 
 	// Write header
-	header := []string{"ShowID", "EpisodeID", "PlaybackTime", "Season", "Quality", "EpisodeNum"}
+	header := []string{"ShowID", "EpisodeID", "PlaybackTime", "Season", "Quality", "EpisodeNum", "Image"}
 	if err := writer.Write(header); err != nil {
 		return fmt.Errorf("error writing header: %w", err)
 	}
 
 	// Write remaining shows
 	for _, show := range filteredShows {
-		record := []string{show.ID, show.EpisodeID, strconv.Itoa(show.PlaybackTime), strconv.Itoa(show.Season), show.Quality, strconv.Itoa(show.EpisodeNum)}
+		record := []string{show.ID, show.EpisodeID, strconv.Itoa(show.PlaybackTime), strconv.Itoa(show.Season), show.Quality, strconv.Itoa(show.EpisodeNum), show.Image}
 		if err := writer.Write(record); err != nil {
 			return fmt.Errorf("error writing record: %w", err)
 		}
