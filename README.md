@@ -18,6 +18,20 @@ https://github.com/user-attachments/assets/7c6da538-c780-4ef7-8b57-31fbd3f01c22
 You need: `mpv` (required), `rofi` (optional), a working Go toolchain if building from source.
 
 <details>
+<summary>Arch Linux</summary>
+  
+```bash
+# Using Paru
+paru -Sy ice-cli-bin
+
+# Using Yay
+yay -Sy ice-cli-bin
+```
+
+</details>
+
+
+<details>
 <summary>Generic Installation</summary>
 
 Choose the appropriate binary for your system:
