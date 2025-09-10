@@ -13,6 +13,8 @@ import (
 	"github.com/Wraient/octopus/internal"
 )
 
+const appVersion = "v0.0.2"
+
 func main() {
 	var user internal.User
 	var show internal.TVShow
@@ -36,6 +38,7 @@ func main() {
 	logFile := filepath.Join(os.ExpandEnv(userIceConfig.StoragePath), "debug.log")
 
 	// Flags
+	showVersion := flag.Bool("v", false, "Show version and exit")
 	flag.StringVar(&userIceConfig.Player, "player", userIceConfig.Player, "Player to use (mpv)")
 	flag.StringVar(&userIceConfig.StoragePath, "storage-path", userIceConfig.StoragePath, "Path to storage")
 	flag.IntVar(&userIceConfig.PercentageToMarkComplete, "percentage-to-mark-complete", userIceConfig.PercentageToMarkComplete, "Percentage to mark complete")
@@ -48,6 +51,11 @@ func main() {
 	showImages := flag.Bool("show-images", false, "Show images in rofi (if available)")
 	flag.Parse()
 
+	if *showVersion {
+		fmt.Println(appVersion)
+		return
+	}
+
 	if *preferredQuality != "" {
 		userIceConfig.PreferredQuality = *preferredQuality
 	}
@@ -57,7 +65,9 @@ func main() {
 	if *noRofi || runtime.GOOS == "windows" {
 		userIceConfig.RofiSelection = false
 	}
-	if *showImages { userIceConfig.ShowImages = true }
+	if *showImages {
+		userIceConfig.ShowImages = true
+	}
 
 	// Save config if modified via flags
 	internal.SetGlobalConfig(&userIceConfig)
@@ -88,16 +98,22 @@ func main() {
 				if s.EpisodeNum > 0 && s.Season > 0 {
 					label = fmt.Sprintf("%s S%02dE%02d", friendly, s.Season, s.EpisodeNum)
 				}
-				if s.PlaybackTime > 0 { label += " (resume)" }
+				if s.PlaybackTime > 0 {
+					label += " (resume)"
+				}
 				// embed icon if config allows and image stored
 				if userIceConfig.ShowImages && userIceConfig.RofiSelection && s.Image != "" {
 					imgLabel := internal.BuildRofiOptionLabel(label, s.Image)
-					if strings.Contains(imgLabel, "\x00icon\x1f") { imageUsedCW = true }
+					if strings.Contains(imgLabel, "\x00icon\x1f") {
+						imageUsedCW = true
+					}
 					label = imgLabel
 				}
 				showOptions[s.ID] = label
 			}
-			if imageUsedCW { internal.RofiSetNextUsePreview(true) }
+			if imageUsedCW {
+				internal.RofiSetNextUsePreview(true)
+			}
 			picked, err := internal.DynamicSelect(showOptions)
 			if err != nil || picked.Key == "-1" { // user canceled; do not fall through to search
 				return
@@ -143,19 +159,28 @@ func main() {
 			label := r.Title
 			if userIceConfig.ShowImages && userIceConfig.RofiSelection { // attempt image aware label
 				imgLabel := internal.BuildRofiOptionLabel(r.Title, r.Image)
-				if strings.Contains(imgLabel, "\x00icon\x1f") { imageUsed = true }
+				if strings.Contains(imgLabel, "\x00icon\x1f") {
+					imageUsed = true
+				}
 				label = imgLabel
 			}
 			opt[r.URL] = label
 		}
-		if imageUsed { internal.RofiSetNextUsePreview(true) }
+		if imageUsed {
+			internal.RofiSetNextUsePreview(true)
+		}
 		picked, err := internal.DynamicSelect(opt)
 		if err != nil || picked.Key == "-1" {
 			return
 		}
 		// capture image url from search result match if available
 		imgURL := ""
-		for _, r := range results { if r.URL == picked.Key { imgURL = r.Image; break } }
+		for _, r := range results {
+			if r.URL == picked.Key {
+				imgURL = r.Image
+				break
+			}
+		}
 		show = internal.TVShow{ID: picked.Key, EpisodeID: "", PlaybackTime: 0, Image: imgURL}
 	}
 
