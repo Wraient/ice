@@ -53,20 +53,27 @@ jobs:
           EXT=$(GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go env GOEXE)
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o dist/${{ env.BINARY_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} ./cmd/ice
 
-      - name: Compress (tar/zip)
+      - name: Compress artifacts (Unix)
+        if: matrix.goos != 'windows'
         shell: bash
         run: |
           set -euo pipefail
           cd dist
           for f in *; do
-            if [[ -f "$f" ]]; then
-              if [[ "$f" == *.exe ]]; then
-                zip -q "${f%.exe}.zip" "$f"
-              else
-                tar -czf "$f.tar.gz" "$f"
-              fi
-            fi
+            [ -f "$f" ] || continue
+            tar -czf "$f.tar.gz" "$f"
           done
+
+      - name: Compress artifacts (Windows)
+        if: matrix.goos == 'windows'
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          Set-Location dist
+          Get-ChildItem -File | ForEach-Object {
+            $name = $_.BaseName
+            Compress-Archive -Path $_.Name -DestinationPath "$name.zip"
+          }
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
