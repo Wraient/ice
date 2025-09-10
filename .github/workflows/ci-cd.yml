@@ -21,6 +21,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      release_match: ${{ steps.detect.outputs.match }}
+      release_version: ${{ steps.detect.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -71,7 +74,8 @@ jobs:
           echo "Tag v$ver pushed. A new workflow run should start for that tag to build & release."
 
   build-matrix:
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    needs: tag-on-message
+    if: needs.tag-on-message.outputs.release_match == 'true' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     name: build (${{ matrix.os }} ${{ matrix.goos }}-${{ matrix.goarch }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -144,8 +148,8 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: build-matrix
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    needs: [tag-on-message, build-matrix]
+    if: needs.tag-on-message.outputs.release_match == 'true' || startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -153,12 +157,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Determine version
+      - name: Set release version
         id: ver
         run: |
+          set -euo pipefail
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             ver="${GITHUB_REF#refs/tags/v}"
+          elif [[ "${{ needs.tag-on-message.outputs.release_match }}" == "true" ]]; then
+            ver="${{ needs.tag-on-message.outputs.release_version }}"
           elif [[ -n "${{ github.event.inputs.version }}" ]]; then
             ver="${{ github.event.inputs.version }}"
           else
