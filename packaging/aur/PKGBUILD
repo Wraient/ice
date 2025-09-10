@@ -1,0 +1,58 @@
+pkgname=ice-bin
+pkgver=0.0.0
+pkgrel=1
+pkgdesc="Ice CLI streaming player (prebuilt binary from latest GitHub release)"
+arch=('x86_64' 'aarch64')
+url="https://github.com/Wraient/ice"
+license=('MIT')
+depends=('mpv')
+optdepends=('rofi: graphical selection via rofi')
+provides=('ice')
+conflicts=('ice')
+
+_src_linux_amd64="ice-linux-amd64.tar.gz"
+_src_linux_arm64="ice-linux-arm64.tar.gz"
+
+source_x86_64=("${_src_linux_amd64}::https://github.com/Wraient/ice/releases/latest/download/ice-linux-amd64.tar.gz" \
+               "LICENSE::https://raw.githubusercontent.com/Wraient/ice/main/LICENSE")
+source_aarch64=("${_src_linux_arm64}::https://github.com/Wraient/ice/releases/latest/download/ice-linux-arm64.tar.gz" \
+                "LICENSE::https://raw.githubusercontent.com/Wraient/ice/main/LICENSE")
+
+sha256sums_x86_64=('SKIP' 'SKIP')
+sha256sums_aarch64=('SKIP' 'SKIP')
+
+pkgver() {
+  # Attempt to derive version from latest tag via headers (optional).
+  # This runs in makepkg environment with network disabled by default unless --holdver.
+  # Fallback keeps placeholder.
+  command -v curl >/dev/null 2>&1 || { echo "$pkgver"; return; }
+  latest=$(curl -Is https://github.com/Wraient/ice/releases/latest | sed -n 's/^location: .*\/tag\/v\?\([^[:space:]]*\).*/\1/p' | tr -d '\r')
+  if [[ -n $latest ]]; then
+    echo "$latest"
+  else
+    echo "$pkgver"
+  fi
+}
+
+build() {
+  : # no build (precompiled binary)
+}
+
+package() {
+  cd "$srcdir"
+  case "$CARCH" in
+    x86_64)
+      tar -xzf "${_src_linux_amd64}"
+      install -Dm755 "ice-linux-amd64" "$pkgdir/usr/bin/ice"
+      ;;
+    aarch64)
+      tar -xzf "${_src_linux_arm64}"
+      install -Dm755 "ice-linux-arm64" "$pkgdir/usr/bin/ice"
+      ;;
+  esac
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  # Example shell completion placeholder (user can extend later)
+  install -d "$pkgdir/usr/share/bash-completions" >/dev/null 2>&1 || true
+}
+
+# vim:set ts=2 sw=2 et:

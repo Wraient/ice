@@ -46,20 +46,26 @@ jobs:
         run: go mod tidy
 
       - name: Build
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p dist
-          EXT=""
-          if [ "${{ matrix.goos }}" = "windows" ]; then EXT=".exe"; fi
+          EXT=$(GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go env GOEXE)
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o dist/${{ env.BINARY_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} ./cmd/ice
 
       - name: Compress (tar/zip)
+        shell: bash
         run: |
+          set -euo pipefail
           cd dist
           for f in *; do
-            case "$f" in
-              *.exe) 7z a ${f%.exe}.zip $f >/dev/null ;;
-              *) tar -czf $f.tar.gz $f ;;
-            esac
+            if [[ -f "$f" ]]; then
+              if [[ "$f" == *.exe ]]; then
+                zip -q "${f%.exe}.zip" "$f"
+              else
+                tar -czf "$f.tar.gz" "$f"
+              fi
+            fi
           done
 
       - name: Upload artifacts
