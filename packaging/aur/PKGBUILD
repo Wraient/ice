@@ -1,4 +1,4 @@
-pkgname=ice-bin
+pkgname=ice
 pkgver=0.0.0
 pkgrel=1
 pkgdesc="Ice CLI streaming player (prebuilt binary from latest GitHub release)"
@@ -10,12 +10,12 @@ optdepends=('rofi: graphical selection via rofi')
 provides=('ice')
 conflicts=('ice')
 
-_src_linux_amd64="ice-linux-amd64.tar.gz"
-_src_linux_arm64="ice-linux-arm64.tar.gz"
+_src_linux_amd64="ice-linux-amd64"
+_src_linux_arm64="ice-linux-arm64"
 
-source_x86_64=("${_src_linux_amd64}::https://github.com/Wraient/ice/releases/latest/download/ice-linux-amd64.tar.gz" \
+source_x86_64=("${_src_linux_amd64}::https://github.com/Wraient/ice/releases/latest/download/ice-linux-amd64" \
                "LICENSE::https://raw.githubusercontent.com/Wraient/ice/main/LICENSE")
-source_aarch64=("${_src_linux_arm64}::https://github.com/Wraient/ice/releases/latest/download/ice-linux-arm64.tar.gz" \
+source_aarch64=("${_src_linux_arm64}::https://github.com/Wraient/ice/releases/latest/download/ice-linux-arm64" \
                 "LICENSE::https://raw.githubusercontent.com/Wraient/ice/main/LICENSE")
 
 sha256sums_x86_64=('SKIP' 'SKIP')
@@ -42,12 +42,10 @@ package() {
   cd "$srcdir"
   case "$CARCH" in
     x86_64)
-      tar -xzf "${_src_linux_amd64}"
-      install -Dm755 "ice-linux-amd64" "$pkgdir/usr/bin/ice"
+      install -Dm755 "${_src_linux_amd64}" "$pkgdir/usr/bin/ice"
       ;;
     aarch64)
-      tar -xzf "${_src_linux_arm64}"
-      install -Dm755 "ice-linux-arm64" "$pkgdir/usr/bin/ice"
+      install -Dm755 "${_src_linux_arm64}" "$pkgdir/usr/bin/ice"
       ;;
   esac
   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
