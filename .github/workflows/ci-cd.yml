@@ -51,7 +51,7 @@ jobs:
           git push origin "v$ver"
 
   build-matrix:
-  if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     name: build (${{ matrix.os }} ${{ matrix.goos }}-${{ matrix.goarch }})
     runs-on: ${{ matrix.os }}
     strategy:
