@@ -175,7 +175,9 @@ func main() {
 		pickOpts := map[string]string{"r": "Resume current episode"}
 		for _, ep := range acerShow.EpisodesList {
 			marker := ""
-			if ep.ID == show.EpisodeID { marker = " *" }
+			if ep.ID == show.EpisodeID {
+				marker = " *"
+			}
 			pickOpts[ep.ID] = fmt.Sprintf("S%02dE%02d %s%s", ep.Season, ep.Episode, ep.Name, marker)
 		}
 		choice, err := internal.DynamicSelect(pickOpts)

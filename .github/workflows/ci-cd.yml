@@ -1,0 +1,121 @@
+name: ice-release
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+env:
+  GO_VERSION: '1.21'
+  BINARY_NAME: ice
+
+jobs:
+  build-matrix:
+    name: build (${{ matrix.os }} ${{ matrix.goos }}-${{ matrix.goarch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Tidy modules
+        run: go mod tidy
+
+      - name: Build
+        run: |
+          mkdir -p dist
+          EXT=""
+          if [ "${{ matrix.goos }}" = "windows" ]; then EXT=".exe"; fi
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o dist/${{ env.BINARY_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${EXT} ./cmd/ice
+
+      - name: Compress (tar/zip)
+        run: |
+          cd dist
+          for f in *; do
+            case "$f" in
+              *.exe) 7z a ${f%.exe}.zip $f >/dev/null ;;
+              *) tar -czf $f.tar.gz $f ;;
+            esac
+          done
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ice-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: build-matrix
+    if: startsWith(github.ref, 'refs/heads/main') && contains(github.event.head_commit.message, 'release:')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version
+        id: ver
+        run: |
+          # Extract version after 'release: ' prefix or fallback to date
+          msg='${{ github.event.head_commit.message }}'
+            if echo "$msg" | grep -qi 'release:'; then
+              ver=$(echo "$msg" | sed -E 's/.*release: *([vV]?[0-9][^ ]*).*/\1/' | sed 's/^v//')
+            else
+              ver=$(date +%Y.%m.%d)
+            fi
+          echo "version=$ver" >> $GITHUB_OUTPUT
+          echo "Release version: $ver"
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release directory
+        run: |
+          mkdir -p release
+          find artifacts -type f -maxdepth 3 -print -exec cp {} release/ \;
+          ls -lah release
+
+      - name: Generate checksums
+        run: |
+          cd release
+          sha256sum * > SHA256SUMS.txt || shasum -a 256 * > SHA256SUMS.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: "Ice v${{ steps.ver.outputs.version }}"
+          generate_release_notes: true
+          files: |
+            release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

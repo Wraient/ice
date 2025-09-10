@@ -1,0 +1,202 @@
+name: Update AUR Package
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag name (e.g., v1.2.3)'
+        required: true
+        type: string
+
+jobs:
+  update-aur:
+    runs-on: ubuntu-latest
+    if: github.repository == 'Wraient/curd'
+    
+    steps:
+      - name: Checkout main repository
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG_NAME="${{ github.event.inputs.tag_name }}"
+          else
+            TAG_NAME="${{ github.event.release.tag_name }}"
+          fi
+          VERSION=$(echo "$TAG_NAME" | sed 's/^v//')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "Extracted version: $VERSION"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y expect git sshpass
+
+      - name: Set up SSH for AUR
+        run: |
+          mkdir -p ~/.ssh
+          # Write the SSH key
+          cat > ~/.ssh/aur_rsa << 'EOF'
+          ${{ secrets.AUR_SSH_KEY }}
+          EOF
+          chmod 600 ~/.ssh/aur_rsa
+          
+          # Add AUR host key
+          ssh-keyscan -H aur.archlinux.org >> ~/.ssh/known_hosts
+          
+          # Test the key directly (this should prompt for passphrase)
+          echo "Testing SSH key..."
+          expect -c "
+            set timeout 30
+            spawn ssh -o PasswordAuthentication=no -o IdentitiesOnly=yes -i ~/.ssh/aur_rsa -T aur@aur.archlinux.org
+            expect {
+              \"Enter passphrase*\" {
+                send \"sex\r\"
+                expect {
+                  \"Welcome to AUR*\" {
+                    puts \"SUCCESS: SSH connection works\"
+                    exit 0
+                  }
+                  \"Permission denied*\" {
+                    puts \"ERROR: Permission denied after passphrase\"
+                    exit 1
+                  }
+                  timeout {
+                    puts \"ERROR: Timeout after passphrase\"
+                    exit 1
+                  }
+                }
+              }
+              \"Welcome to AUR*\" {
+                puts \"SUCCESS: SSH works without passphrase\"
+                exit 0
+              }
+              \"Permission denied*\" {
+                puts \"ERROR: Permission denied - wrong key or not authorized\"
+                exit 1
+              }
+              timeout {
+                puts \"ERROR: Connection timeout\"
+                exit 1
+              }
+            }
+          "
+
+      - name: Clone AUR repository
+        run: |
+          # Use expect to handle the passphrase during git clone
+          expect -c "
+            set timeout 60
+            spawn git clone ssh://aur@aur.archlinux.org/curd.git aur-curd
+            expect {
+              \"Enter passphrase*\" {
+                send \"sex\r\"
+                exp_continue
+              }
+              \"Cloning into*\" {
+                puts \"Clone started successfully\"
+                exp_continue
+              }
+              \"Permission denied*\" {
+                puts \"ERROR: Permission denied\"
+                exit 1
+              }
+              eof {
+                puts \"Clone completed\"
+                exit 0
+              }
+              timeout {
+                puts \"ERROR: Clone timeout\"
+                exit 1
+              }
+            }
+          "
+          
+          # Verify the clone worked
+          if [ -d "aur-curd" ]; then
+            echo "SUCCESS: AUR repository cloned"
+            ls -la aur-curd/
+          else
+            echo "ERROR: Clone failed"
+            exit 1
+          fi
+
+      - name: Update PKGBUILD
+        working-directory: aur-curd
+        run: |
+          # Configure git
+          git config user.name "Wraient"
+          git config user.email "rushikeshwastaken@gmail.com"
+          
+          # Update pkgver in PKGBUILD
+          sed -i "s/^pkgver=.*/pkgver=${{ steps.version.outputs.version }}/" PKGBUILD
+          
+          # Reset pkgrel to 1 for new version
+          sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+          
+          # Update .SRCINFO
+          makepkg --printsrcinfo > .SRCINFO
+          
+          echo "Updated PKGBUILD:"
+          cat PKGBUILD
+
+      - name: Verify release exists
+        run: |
+          # Check if the release and binary exist
+          curl -f -L -I "https://github.com/Wraient/curd/releases/download/${{ steps.version.outputs.tag_name }}/curd-linux-x86_64" || {
+            echo "Error: Release binary not found!"
+            echo "Expected URL: https://github.com/Wraient/curd/releases/download/${{ steps.version.outputs.tag_name }}/curd-linux-x86_64"
+            exit 1
+          }
+
+      - name: Commit and push to AUR
+        working-directory: aur-curd
+        run: |
+          # Check if there are changes to commit
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          
+          # Add and commit changes
+          git add PKGBUILD .SRCINFO
+          git commit -m "Update to version ${{ steps.version.outputs.version }}"
+          
+          # Push with expect to handle passphrase
+          expect -c "
+            set timeout 60
+            spawn git push origin master
+            expect {
+              \"Enter passphrase*\" {
+                send \"sex\r\"
+                exp_continue
+              }
+              \"Everything up-to-date*\" {
+                puts \"Nothing to push\"
+                exit 0
+              }
+              \"Permission denied*\" {
+                puts \"ERROR: Permission denied during push\"
+                exit 1
+              }
+              eof {
+                puts \"Push completed\"
+                exit 0
+              }
+              timeout {
+                puts \"ERROR: Push timeout\"
+                exit 1
+              }
+            }
+          "
+
+      - name: Cleanup
+        if: always()
+        run: |
+          # Clean up SSH keys
+          rm -f ~/.ssh/aur_rsa
